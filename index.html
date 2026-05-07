@@ -249,7 +249,7 @@
         // --- DASHBOARD (STATISZTIKA) LOGIKA ---
         async function loadStats() {
             try {
-                const res = await fetch('http://127.0.0.1:8000/stats');
+                const res = await fetch('https://tradeviseionhub.onrender.com/stats');
                 const data = await res.json();
                 document.getElementById('winRateTxt').innerText = data.win_rate + '%';
                 document.getElementById('winTxt').innerText = data.stats.WIN || 0;
@@ -281,7 +281,7 @@
                 appendAI('user', text || "Analyzing chart snapshot...");
                 const loadId = appendAI('bot', '⏳ AI Scanning market data...');
                 try {
-                    const res = await fetch('http://127.0.0.1:8000/analyze', {method: 'POST', body: fd});
+                    const res = await fetch('https://tradeviseionhub.onrender.com/analyze', {method: 'POST', body: fd});
                     const d = await res.json();
                     const content = `📊 <b>MARKET ANALYSIS</b><br>${d.summary.replace(/\n/g, '<br>')}<hr><details><summary>Detailed Confluence</summary>${d.reasoning.replace(/\n/g, '<br>')}</details>`;
                     updateAI(loadId, content);
@@ -291,7 +291,7 @@
                 const loadId = appendAI('bot', '⏳ Processing...');
                 const cf = new FormData(); cf.append('message', text);
                 try {
-                    const res = await fetch('http://127.0.0.1:8000/chat', {method: 'POST', body: cf});
+                    const res = await fetch('https://tradeviseionhub.onrender.com/chat', {method: 'POST', body: cf});
                     const d = await res.json();
                     updateAI(loadId, d.reply.replace(/\n/g, '<br>'));
                 } catch(e) { updateAI(loadId, "❌ Connection error."); }
@@ -309,13 +309,13 @@
             const input = document.getElementById('commInput');
             const msg = input.value.trim(); if(!msg) return;
             const fd = new FormData(); fd.append('username', currentUser); fd.append('message', msg);
-            await fetch('http://127.0.0.1:8000/community/send', {method: 'POST', body: fd});
+            await fetch('https://tradeviseionhub.onrender.com/community/send', {method: 'POST', body: fd});
             input.value = ""; loadComm();
         }
 
         async function loadComm() {
             try {
-                const res = await fetch('http://127.0.0.1:8000/community/messages');
+                const res = await fetch('https://tradeviseionhub.onrender.com/community/messages');
                 const data = await res.json();
                 document.getElementById('commChatBox').innerHTML = data.messages.map(m => `<div><b style="color:var(--cyan)">${m.username}:</b> ${m.text}</div>`).join('');
                 // Automatikus görgetés alulra
