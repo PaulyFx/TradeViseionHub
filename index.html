@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradeVision Pro Elite</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --bg: #05050a; --glass: rgba(16, 25, 43, 0.6); --border: rgba(0, 242, 254, 0.15); --cyan: #00f2fe; --magenta: #ff0844; --yellow: #f59e0b; --text: #f1f5f9; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        #loginOverlay { position: fixed; inset: 0; background: var(--bg); z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 20px; }
+        .ticker-wrap { width: 100%; height: 44px; background: #000; border-bottom: 1px solid var(--border); overflow: hidden; }
+        .app-layout { display: flex; flex: 1; overflow: hidden; }
+        .sidebar { width: 70px; background: var(--glass); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; padding: 20px 0; gap: 20px; z-index: 10; }
+        .workspace { display: flex; flex: 1; padding: 15px; gap: 15px; overflow: hidden; }
+        .view-section { display: none; flex: 1; gap: 15px; overflow: hidden; }
+        .view-section.active { display: flex; }
+        .left-panel { flex: 2; display: flex; flex-direction: column; gap: 10px; }
+        .dashboard-grid { display: grid; grid-template-columns: repeat(4, 1fr) 120px; gap: 10px; }
+        .glass-card { background: var(--glass); border: 1px solid var(--border); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; justify-content: center; }
+        .card-title { font-size: 0.65em; text-transform: uppercase; color: #64748b; }
+        .card-val { font-size: 1.5em; font-weight: bold; }
+        .tv-chart-wrapper { flex: 1; background: #000; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+        .right-panel { flex: 0.8; min-width: 380px; display: flex; flex-direction: column; gap: 10px; }
+        .chat-container { flex: 1; background: var(--glass); border: 1px solid var(--border); border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; }
+        .terminal-header { padding: 8px 12px; background: rgba(0,0,0,0.5); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 0.8em; }
+        .chat-box { flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; font-size: 0.85em; }
+        .msg { padding: 10px 14px; border-radius: 10px; line-height: 1.4; max-width: 85%; position: relative;}
+        .msg.bot { background: rgba(0,0,0,0.4); border-left: 3px solid var(--magenta); align-self: flex-start; }
+        .msg.user { background: rgba(0, 242, 254, 0.1); border: 1px solid rgba(0, 242, 254, 0.2); align-self: flex-end; }
+        .msg img { max-width: 100%; border-radius: 5px; margin-top: 8px; }
+        .input-area { padding: 10px; background: rgba(0,0,0,0.4); border-top: 1px solid var(--border); display: flex; gap: 8px; position: relative;}
+        .file-label { padding: 10px; border-radius: 8px; background: #1e293b; cursor: pointer; border: 1px solid var(--border); }
+        .file-label.has-file { background: var(--magenta); box-shadow: 0 0 10px var(--magenta); }
+        .text-input { flex: 1; background: #000; border: 1px solid var(--border); color: white; padding: 10px; border-radius: 8px; outline: none; }
+        .send-btn { background: transparent; color: var(--cyan); border: 1px solid var(--cyan); padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .send-btn:hover { background: var(--cyan); color: #000; box-shadow: 0 0 10px var(--cyan); }
+        #pastePreview { position: absolute; bottom: 70px; right: 10px; max-width: 100px; border: 2px solid var(--magenta); display: none; border-radius: 5px; z-index: 10;}
+        details { margin-top: 10px; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 5px; border: 1px solid var(--border); }
+        summary { cursor: pointer; color: var(--cyan); font-weight: bold; }
+        
+        .nav-item { width: 45px; height: 45px; display: flex; justify-content: center; align-items: center; border-radius: 12px; cursor: pointer; transition: 0.3s; font-size: 1.2em; color: #64748b; }
+        .nav-item.active { background: rgba(0, 242, 254, 0.1); color: var(--cyan); border: 1px solid var(--cyan); box-shadow: 0 0 15px rgba(0, 242, 254, 0.3);}
+        
+        /* Settings Styles */
+        .settings-view { flex: 1; max-width: 600px; margin: 40px auto; background: var(--glass); padding: 30px; border-radius: 15px; border: 1px solid var(--border); }
+    </style>
+</head>
+<body onpaste="handlePaste(event)">
+
+    <div id="loginOverlay">
+        <h1 style="color: var(--cyan); text-shadow: 0 0 15px var(--cyan);">TRADEVISION ELITE</h1>
+        <input type="text" id="usernameInput" class="text-input" style="flex:none; width: 250px;" placeholder="Handle name (e.g. Maverick)">
+        <button class="send-btn" onclick="login()">LOGIN</button>
+    </div>
+
+    <!-- Ticker Tape -->
+    <div class="ticker-wrap" id="tickerContainer"></div>
+
+    <div class="app-layout">
+        <aside class="sidebar">
+            <div class="logo">⚡</div>
+            <div class="nav-item active" onclick="switchView('main', this)" title="Terminal">💬</div>
+            <div class="nav-item" onclick="switchView('settings', this)" title="Settings">⚙️</div>
+        </aside>
+
+        <div class="workspace">
+            <!-- MAIN TERMINAL VIEW -->
+            <div id="view-main" class="view-section active">
+                <div class="left-panel">
+                    <div class="dashboard-grid">
+                        <div class="glass-card"><span class="card-title">Win Rate</span><span class="card-val" id="winRateTxt" style="color:var(--cyan)">0%</span></div>
+                        <div class="glass-card"><span class="card-title">Wins</span><span class="card-val" id="winTxt" style="color:var(--cyan)">0</span></div>
+                        <div class="glass-card"><span class="card-title">Losses</span><span class="card-val" id="lossTxt" style="color:var(--magenta)">0</span></div>
+                        <div class="glass-card"><span class="card-title">Active</span><span class="card-val" id="pendingTxt" style="color:var(--yellow)">0</span></div>
+                        <div class="glass-card" style="padding: 2px;"><canvas id="winRateChart"></canvas></div>
+                    </div>
+                    <div class="tv-chart-wrapper" id="tv_chart_container"></div>
+                </div>
+
+                <div class="right-panel">
+                    <div class="chat-container">
+                        <div class="terminal-header"><span>● TradeVision AI</span><span id="pasteStatus" style="color:var(--magenta)"></span></div>
+                        <div class="chat-box" id="aiChatBox">
+                            <div class="msg bot">System online. Take a snapshot of the chart, click here and press Ctrl+V.</div>
+                        </div>
+                        <div class="input-area">
+                            <img id="pastePreview">
+                            <label for="aiFile" class="file-label" id="aiFileLabel">📎</label>
+                            <input type="file" id="aiFile" hidden onchange="updateAILabel()">
+                            <input type="text" id="aiInput" class="text-input" placeholder="Type command or paste image..." onkeypress="if(event.key==='Enter')sendAI()">
+                            <button class="send-btn" onclick="sendAI()">RUN</button>
+                        </div>
+                    </div>
+                    <div class="chat-container" style="flex: 0.6;">
+                        <div class="terminal-header"><span>● COMMUNITY HUB</span></div>
+                        <div class="chat-box" id="commChatBox"></div>
+                        <div class="input-area">
+                            <input type="text" id="commInput" class="text-input" placeholder="Message community..." onkeypress="if(event.key==='Enter')sendComm()">
+                            <button class="send-btn" onclick="sendComm()">SEND</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SETTINGS VIEW -->
+            <div id="view-settings" class="view-section">
+                <div class="settings-view">
+                    <h2 style="color:var(--cyan); margin-top: 0; border-bottom: 1px solid var(--border); padding-bottom: 10px;">Ticker Configuration</h2>
+                    
+                    <div style="margin-bottom: 20px; margin-top: 20px;">
+                        <label style="display:block; margin-bottom:10px; font-size:0.85em; color:#64748b;">ADD NEW SYMBOL (e.g. BINANCE:BTCUSDT)</label>
+                        <div style="display:flex; gap:10px;">
+                            <input type="text" id="newSymbolInput" class="text-input" style="flex:1;" placeholder="OANDA:XAUUSD" onkeypress="if(event.key==='Enter')addSymbol()">
+                            <button class="send-btn" onclick="addSymbol()">ADD</button>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <label style="display:block; margin-bottom:10px; font-size:0.85em; color:#64748b;">ACTIVE SYMBOLS (Click '×' to remove)</label>
+                        <div id="active-list" style="display:flex; flex-wrap:wrap; gap:10px;">
+                            <!-- Ide generálja be a JS a gombokat -->
+                        </div>
+                    </div>
+                    
+                    <button class="send-btn" style="width:100%; padding:15px; margin-top:20px;" onclick="switchView('main', document.querySelector('.nav-item'))">BACK TO TERMINAL</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <script>
+        let currentUser = ""; let pastedBlob = null; let chartInstance = null;
+        
+        // Ticker Lista lekérése a böngészőből (vagy alapértelmezett)
+        let activeSymbols = JSON.parse(localStorage.getItem('tickerSymbolsList')) || [
+            "BINANCE:BTCUSDT", "BINANCE:ETHUSDT", "BINANCE:SOLUSDT", "OANDA:XAUUSD"
+        ];
+
+        function switchView(view, btn) {
+            document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(v => v.classList.remove('active'));
+            document.getElementById('view-' + view).classList.add('active');
+            btn.classList.add('active');
+        }
+
+        // --- TICKER BEÁLLÍTÁSOK LOGIKA ---
+        function renderActiveList() {
+            const listDiv = document.getElementById('active-list');
+            listDiv.innerHTML = "";
+            activeSymbols.forEach((sym, index) => {
+                const piller = document.createElement('div');
+                piller.style = "background:rgba(0, 242, 254, 0.1); border:1px solid var(--cyan); padding:5px 12px; border-radius:20px; cursor:pointer; font-size:0.8em; display:flex; align-items:center;";
+                piller.innerHTML = `${sym} <span style="color:var(--magenta); margin-left:8px; font-weight:bold; font-size:1.2em;">&times;</span>`;
+                piller.onclick = () => removeSymbol(index);
+                listDiv.appendChild(piller);
+            });
+        }
+
+        function addSymbol() {
+            const input = document.getElementById('newSymbolInput');
+            const val = input.value.trim().toUpperCase();
+            if(val && !activeSymbols.includes(val)) {
+                activeSymbols.push(val);
+                input.value = "";
+                saveAndRefreshTicker();
+            }
+        }
+
+        function removeSymbol(index) {
+            activeSymbols.splice(index, 1);
+            saveAndRefreshTicker();
+        }
+
+        function saveAndRefreshTicker() {
+            localStorage.setItem('tickerSymbolsList', JSON.stringify(activeSymbols));
+            renderActiveList();
+            initTicker(); // Azonnali frissítés a fenti szalagon!
+        }
+
+        function initTicker() {
+            const container = document.getElementById('tickerContainer');
+            container.innerHTML = ""; // Töröljük a régit
+            
+            const symArray = activeSymbols.map(s => {
+                let parts = s.split(':');
+                return { "proName": s, "title": parts.length > 1 ? parts[1] : s };
+            });
+
+            // Ha véletlen kiürítette a listát, adjunk neki egy alap Bitcoin-t, hogy ne omoljon össze
+            if (symArray.length === 0) symArray.push({ "proName": "BINANCE:BTCUSDT", "title": "BTCUSDT" });
+
+            const s = document.createElement('script'); 
+            s.src = "https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js";
+            s.innerHTML = JSON.stringify({
+                "symbols": symArray,
+                "showSymbolLogo": true, "colorTheme": "dark", "isTransparent": true, "displayMode": "adaptive", "locale": "en"
+            });
+            container.appendChild(s);
+        }
+
+        // --- RENDSZER INDÍTÁS (LOGIN) ---
+        function login() {
+            const user = document.getElementById('usernameInput').value.trim();
+            if(!user) return;
+            currentUser = user;
+            document.getElementById('loginOverlay').style.display = 'none';
+            
+            renderActiveList();
+            initTicker();
+            initTV(); 
+            loadStats();
+            
+            setInterval(loadComm, 2000); 
+            setInterval(loadStats, 60000);
+        }
+
+        function initTV() {
+            new TradingView.widget({
+                "autosize": true, "symbol": "BINANCE:BTCUSDT", "interval": "15", 
+                "theme": "dark", "style": "1", "hide_side_toolbar": false, 
+                "allow_symbol_change": true, "withdateranges": true, "save_image": true, 
+                "container_id": "tv_chart_container"
+            });
+        }
+
+        // --- CTRL+V (KÉP BEILLESZTÉS) LOGIKA ---
+        function handlePaste(e) {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for(let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf("image") !== -1) {
+                    pastedBlob = items[i].getAsFile();
+                    document.getElementById('aiFileLabel').classList.add('has-file');
+                    const reader = new FileReader();
+                    reader.onload = (event) => { 
+                        const preview = document.getElementById('pastePreview');
+                        preview.src = event.target.result; 
+                        preview.style.display = "block"; 
+                    };
+                    reader.readAsDataURL(pastedBlob);
+                    break;
+                }
+            }
+        }
+
+        function updateAILabel() { if(document.getElementById('aiFile').files.length > 0) document.getElementById('aiFileLabel').classList.add('has-file'); }
+
+        // --- DASHBOARD (STATISZTIKA) LOGIKA ---
+        async function loadStats() {
+            try {
+                const res = await fetch('http://127.0.0.1:8000/stats');
+                const data = await res.json();
+                document.getElementById('winRateTxt').innerText = data.win_rate + '%';
+                document.getElementById('winTxt').innerText = data.stats.WIN || 0;
+                document.getElementById('lossTxt').innerText = data.stats.LOSS || 0;
+                document.getElementById('pendingTxt').innerText = data.stats.PENDING || 0;
+                updateChart(data.stats.WIN || 0, data.stats.LOSS || 0, data.stats.PENDING || 0);
+            } catch(e) {}
+        }
+
+        function updateChart(w, l, p) {
+            const ctx = document.getElementById('winRateChart').getContext('2d');
+            if(chartInstance) chartInstance.destroy();
+            chartInstance = new Chart(ctx, { 
+                type: 'doughnut', 
+                data: { datasets: [{ data: [w,l,p], backgroundColor: ['#00f2fe', '#ff0844', '#f59e0b'], borderWidth: 0 }] }, 
+                options: { cutout: '80%', plugins: { legend: {display: false} } } 
+            });
+        }
+
+        // --- AI CHAT LOGIKA ---
+        async function sendAI() {
+            const textInput = document.getElementById('aiInput');
+            const text = textInput.value.trim();
+            const fileInput = document.getElementById('aiFile');
+            const fd = new FormData();
+
+            if(pastedBlob || fileInput.files.length > 0) {
+                fd.append('files', pastedBlob || fileInput.files[0]);
+                appendAI('user', text || "Analyzing chart snapshot...");
+                const loadId = appendAI('bot', '⏳ AI Scanning market data...');
+                try {
+                    const res = await fetch('http://127.0.0.1:8000/analyze', {method: 'POST', body: fd});
+                    const d = await res.json();
+                    const content = `📊 <b>MARKET ANALYSIS</b><br>${d.summary.replace(/\n/g, '<br>')}<hr><details><summary>Detailed Confluence</summary>${d.reasoning.replace(/\n/g, '<br>')}</details>`;
+                    updateAI(loadId, content);
+                } catch(e) { updateAI(loadId, "❌ Error reaching backend. Check server."); }
+            } else if(text) {
+                appendAI('user', text);
+                const loadId = appendAI('bot', '⏳ Processing...');
+                const cf = new FormData(); cf.append('message', text);
+                try {
+                    const res = await fetch('http://127.0.0.1:8000/chat', {method: 'POST', body: cf});
+                    const d = await res.json();
+                    updateAI(loadId, d.reply.replace(/\n/g, '<br>'));
+                } catch(e) { updateAI(loadId, "❌ Connection error."); }
+            }
+            
+            // Reset
+            pastedBlob = null; fileInput.value = ""; textInput.value = "";
+            document.getElementById('pastePreview').style.display = "none";
+            document.getElementById('aiFileLabel').classList.remove('has-file');
+            loadStats();
+        }
+
+        // --- COMMUNITY HUB LOGIKA ---
+        async function sendComm() {
+            const input = document.getElementById('commInput');
+            const msg = input.value.trim(); if(!msg) return;
+            const fd = new FormData(); fd.append('username', currentUser); fd.append('message', msg);
+            await fetch('http://127.0.0.1:8000/community/send', {method: 'POST', body: fd});
+            input.value = ""; loadComm();
+        }
+
+        async function loadComm() {
+            try {
+                const res = await fetch('http://127.0.0.1:8000/community/messages');
+                const data = await res.json();
+                document.getElementById('commChatBox').innerHTML = data.messages.map(m => `<div><b style="color:var(--cyan)">${m.username}:</b> ${m.text}</div>`).join('');
+                // Automatikus görgetés alulra
+                const box = document.getElementById('commChatBox');
+                box.scrollTop = box.scrollHeight;
+            } catch(e) {}
+        }
+
+        function appendAI(s, t) {
+            const id = "msg" + Date.now();
+            const box = document.getElementById('aiChatBox');
+            box.innerHTML += `<div class="msg ${s}" id="${id}">${t}</div>`;
+            box.scrollTop = box.scrollHeight;
+            return id;
+        }
+        function updateAI(id, t) { document.getElementById(id).innerHTML = t; }
+    </script>
+</body>
+</html>
